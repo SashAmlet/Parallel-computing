@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import time
 
 def median_filter_manual(image: np.ndarray, kernel_size: int) -> np.ndarray:
     """
@@ -38,11 +39,14 @@ def apply_median_filter(input_image_path: str, output_image_path: str, kernel_si
         raise FileNotFoundError(f"Failed to load the image: {input_image_path}")
     
     # Process the image
+    start_time = time.time()
     filtered_image = median_filter_manual(image, kernel_size)
+    end_time = time.time()
     
     # Save the result
     cv2.imwrite(output_image_path, filtered_image)
     print(f"Processed image saved to: {output_image_path}")
+    print(f"Execution time: {end_time - start_time:.2f} seconds", flush=True)
 
 
 
