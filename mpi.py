@@ -49,19 +49,22 @@ def parallel_median_filter(input_image_path: str, output_image_path: str, kernel
         # Determine the number of rows per process
         chunk_size = height // size
         remainder = height % size
+        overlap = kernel_size // 2  # Overlap size
 
         # Send data to processes
         # Since remainder is guaranteed to be smaller than size, 
         # the first remaining processes will get 1 row more
         for i in range(1, size):
-            start_row = i * chunk_size + min(i, remainder)
-            end_row = start_row + chunk_size + (1 if i < remainder else 0)
+            start_row = i * chunk_size + min(i, remainder) - overlap
+            end_row = start_row + chunk_size + (1 if i < remainder else 0) + overlap
+            start_row = max(0, start_row)  # Ensure we don't go out of bounds
+            end_row = min(height, end_row)  # Ensure we don't go out of bounds
             comm.send(image[start_row:end_row], dest=i)
             print(f"Sent data to process {i}", flush=True)
 
         # Process own chunk
         start_row = 0
-        end_row = chunk_size + (1 if 0 < remainder else 0)
+        end_row = chunk_size + (1 if 0 < remainder else 0) + overlap
         filtered_chunk = median_filter_manual(image[start_row:end_row], kernel_size)
 
     else:
@@ -75,8 +78,12 @@ def parallel_median_filter(input_image_path: str, output_image_path: str, kernel
     print(f"Gather all chunks", flush=True)
 
     if rank == 0:
-        # Combine chunks
-        final_image = np.vstack(gathered_chunks)
+        # Combine chunks, removing overlap
+        final_image = gathered_chunks[0][:-overlap]  # Remove bottom overlap of the first chunk
+        for i in range(1, len(gathered_chunks) - 1):
+            final_image = np.vstack((final_image, gathered_chunks[i][overlap:-overlap]))  # Remove top and bottom overlap
+        final_image = np.vstack((final_image, gathered_chunks[-1][overlap:]))  # Remove top overlap of the last chunk
+
         cv2.imwrite(output_image_path, final_image)
         print(f"Processed image saved to: {output_image_path}", flush=True)
         end_time = time.time()  # End time measurement
